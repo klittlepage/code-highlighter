@@ -9,8 +9,10 @@ module Octopress
         @options = DEFAULTS.merge(@options)
         if defined? Octopress.config
           @aliases = Octopress.config['code_aliases']
+          @highlighter = Octopress.config['highlighter']
         elsif defined? Ink
           @aliases = Ink.config['code_aliases']
+          @highlighter = Ink.config['highlighter']
         end
         @aliases ||= stringify_keys(@options[:aliases] || {})
         @lang = @options[:lang]
@@ -18,20 +20,39 @@ module Octopress
         @renderer = select_renderer
       end
 
+      def select_renderer_explicit
+        if !['rouge', 'pygments'].include?(@highlighter)
+          raise 'Invalid highlighter specified in config'
+        end
+        if @highlighter.eql?('rouge') && renderer_available?('rouge')
+          require 'rouge'
+          return  'rouge'
+        end
+        if @highlighter.eql?('pygments') && renderer_available?('pygments.rb')
+          require 'pygments'
+          return  'pygments'
+        end
+        no_renderer_found
+      end
+
+      def no_renderer_found
+        $stderr.puts 'No syntax highlighting:'.yellow
+        $stderr.puts "\tInstall pygments.rb, rouge".yellow
+        'plain'
+      end
+
       def select_renderer
+        return select_renderer_explicit if @highlighter
         case true
-          when renderer_available?('rouge')
-            require 'rouge'
-            return  'rouge'
           when renderer_available?('pygments.rb')
             require 'pygments'
             return  'pygments'
+          when renderer_available?('rouge')
+            require 'rouge'
+            return  'rouge'
         else
-          $stderr.puts 'No syntax highlighting:'.yellow
-          $stderr.puts "\tInstall pygments.rb, rouge".yellow
+          no_renderer_found
         end
-  
-        'plain'
       end
       
       def renderer_available?(which)
